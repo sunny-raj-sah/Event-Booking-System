@@ -166,15 +166,74 @@ Triggers booking cancellation event logging.
 
 All test cases should be executed in sequence.
 
-Test Case 1: Create Event (Organizer)
+Step 1: Start Your Server
 
-Request
+Before testing anything in Postman:
 
-POST /api/events
+Open your terminal
+
+Go to your project folder
+
+Run:
+
+node src/server.js
+
+Make sure it prints something like:
+
+Server running on http://localhost:3000
+
+Leave the terminal open — this will show background task logs like booking confirmations and notifications.
+
+Step 2: Open Postman
+
+Download Postman if you don’t have it.
+
+Open it and create a new collection (optional but recommended):
+
+Name: Event Booking System
+
+Step 3: Set Environment Variables (Optional but easier)
+
+Go to Environments → Create New
+
+Add variables:
+
+Key Value Description
+baseUrl http://localhost:3000/api
+Base URL of API
+organizerId 1 Predefined Organizer user-id
+customer1 2 Predefined Customer user-id
+customer2 3 Another Customer user-id
+
+This lets you use {{baseUrl}} in all requests instead of typing the URL every time.
+
+Step 4: Test Health Check (No Role Needed)
+
+Method: GET
+
+URL: http://localhost:3000/ (or {{baseUrl}} if using variable)
+
+Headers: none
+
+Send request → Response should be:
+
+{ "message": "Event Booking API running" }
+
+✅ This ensures your server is working.
+
+Step 5: Organizer Creates Event (Allowed)
+
+Method: POST
+
+URL: {{baseUrl}}/events
+
 Headers:
-user-id: 1
 
-Body
+Key Value
+user-id 1 (or {{organizerId}})
+Content-Type application/json
+
+Body → raw JSON:
 
 {
 "title": "Tech Conference 2026",
@@ -182,87 +241,169 @@ Body
 "availableTickets": 3
 }
 
-Expected Result
+Send request → Expected response:
 
-201 Created
+{
+"id": 1,
+"title": "Tech Conference 2026",
+"date": "2026-02-15",
+"availableTickets": 3
+}
 
-Event stored successfully
+✅ Organizer can create events.
 
-Test Case 2: Customer Tries to Create Event (Forbidden)
-POST /api/events
+Step 6: Customer Tries to Create Event (Forbidden)
+
+Method: POST
+
+URL: {{baseUrl}}/events
+
 Headers:
-user-id: 2
 
-Expected Result
+Key Value
+user-id 2 (or {{customer1}})
+Content-Type application/json
 
-403 Forbidden
+Body → raw JSON:
 
-Access denied
+{
+"title": "Unauthorized Event",
+"date": "2026-02-20",
+"availableTickets": 5
+}
 
-Test Case 3: Customer Views Events
-GET /api/events
+Send request → Expected response:
+
+{ "error": "Access denied" }
+
+✅ Customer cannot create events.
+
+Step 7: Customer Views Events (Allowed)
+
+Method: GET
+
+URL: {{baseUrl}}/events
+
 Headers:
-user-id: 2
 
-Expected Result
+Key Value
+user-id 2 (or {{customer1}})
 
-List of available events
+Send request → Expected response: Array of events
 
-Test Case 4: Customer Books Ticket
-POST /api/events/1/book
+[
+{
+"id": 1,
+"title": "Tech Conference 2026",
+"date": "2026-02-15",
+"availableTickets": 3
+}
+]
+
+✅ Customer can view events.
+
+Step 8: Customer Books Ticket (Allowed)
+
+Method: POST
+
+URL: {{baseUrl}}/events/1/book
+
 Headers:
-user-id: 2
 
-Expected Result
+Key Value
+user-id 2 (or {{customer1}})
+Content-Type application/json
 
-201 Created
+Body: none (booking uses event ID and user-id)
 
-Tickets reduced
+Send request → Expected response:
 
-Console log:
+{
+"message": "Booking successful",
+"booking": { "id": 1, "eventId": 1, "customerId": 2 }
+}
+
+Check server console → should see:
 
 📧 Booking confirmation email sent for booking 1
 
-Test Case 5: Another Customer Books Ticket
-POST /api/events/1/book
+✅ Customer successfully booked a ticket.
+
+Step 9: Organizer Tries to Book Ticket (Forbidden)
+
+Method: POST
+
+URL: {{baseUrl}}/events/1/book
+
 Headers:
-user-id: 3
 
-Expected Result
+Key Value
+user-id 1 (Organizer)
+Content-Type application/json
 
-Booking successful
+Send request → Expected response:
 
-Console log:
+{ "error": "Access denied" }
 
-📧 Booking confirmation email sent for booking 2
+✅ Organizer cannot book tickets.
 
-Test Case 6: Organizer Updates Event
-PUT /api/events/1
+Step 10: Customer Cancels Booking (Allowed)
+
+Method: DELETE
+
+URL: {{baseUrl}}/bookings/1
+
 Headers:
-user-id: 1
 
-Expected Console Output
+Key Value
+user-id 2 (or {{customer1}})
 
-🔔 Event update notification sent to customer 2
-🔔 Event update notification sent to customer 3
+Send request → Expected response:
 
-Test Case 7: Booking When Tickets Are Sold Out
-POST /api/events/1/book
+{ "message": "Booking cancelled" }
 
-Expected Result
+Check server console → should see booking cancelled event logged (if using EventEmitter)
 
-400 Bad Request
+✅ Customer can cancel their booking.
 
-Booking failed
+Step 11: Organizer Tries to Cancel Booking (Forbidden)
 
-Test Case 8: Missing user-id Header
-GET /api/events
+Method: DELETE
 
-Expected Result
+URL: {{baseUrl}}/bookings/1
 
-401 Unauthorized
+Headers:
 
-Test Case 9: Verify Event Logs
+Key Value
+user-id 1 (Organizer)
+
+Send request → Expected response:
+
+{ "error": "Access denied" }
+
+✅ Organizer cannot cancel bookings.
+
+Step 12: Test Missing user-id Header
+
+Method: GET
+
+URL: {{baseUrl}}/events
+
+Headers: None
+
+Send request → Expected response:
+
+{ "error": "Unauthorized" }
+
+✅ This ensures authentication is required.
+
+Step 13: Background Task Verification (Console Logs)
+
+Booking confirmation: when a customer books a ticket → console logs:
+
+📧 Booking confirmation email sent for booking <id>
+
+Test Case: Verify Event Logs
 
 File
 
